@@ -7,7 +7,9 @@
     "tabs",
     "storage",
     "activeTab",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "https://www.paypal.com/*",
+    "https://your-server.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

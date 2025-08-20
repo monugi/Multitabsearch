@@ -1,5 +1,6 @@
 // Multi Tab Search Extension - Premium Version
 // Enhanced with subscription management and query limits
+import { PayPalService } from './src/paypal-service.js';
 
 class PremiumManager {
     constructor() {
@@ -12,6 +13,7 @@ class PremiumManager {
         this.dailyQueryCount = 0;
         this.lastQueryDate = null;
         this.FREE_QUERY_LIMIT = 20;
+        this.paypalService = new PayPalService();
         this.init();
     }
 
@@ -406,13 +408,211 @@ class PremiumManager {
 
         document.getElementById('confirm-upgrade-btn').addEventListener('click', (e) => {
             const selectedPlan = e.target.dataset.plan;
-            this.subscribeToPremium(selectedPlan);
-            this.closeModal();
+            this.initiatePayPalPayment(selectedPlan);
         });
 
         document.getElementById('cancel-upgrade-btn').addEventListener('click', () => {
             this.closeModal();
             this.showPremiumModal();
+        });
+    }
+
+    async initiatePayPalPayment(planType) {
+        try {
+            this.closeModal();
+            this.showPayPalModal(planType);
+        } catch (error) {
+            console.error('Error initiating PayPal payment:', error);
+            this.showStatus('❌ Error setting up payment. Please try again.', 'error');
+        }
+    }
+
+    showPayPalModal(planType) {
+        const plan = {
+            monthly: { name: 'Monthly Premium', price: '$4.99/month' },
+            yearly: { name: 'Yearly Premium', price: '$24.99/year (Save 58%)' }
+        };
+
+        const selectedPlan = plan[planType];
+        
+        const modal = this.createModal('paypal-payment-modal', 'Complete Your Payment', `
+            <div class="paypal-payment-content">
+                <div class="payment-summary">
+                    <h4>💳 Payment Summary</h4>
+                    <div class="plan-details">
+                        <span class="plan-name">${selectedPlan.name}</span>
+                        <span class="plan-price">${selectedPlan.price}</span>
+                    </div>
+                </div>
+
+                <div class="payment-options">
+                    <h5>Choose Payment Type:</h5>
+                    <div class="payment-type-buttons">
+                        <button class="payment-type-btn active" data-type="subscription" id="subscription-btn">
+                            🔄 Recurring Subscription
+                            <small>Automatic renewal</small>
+                        </button>
+                        <button class="payment-type-btn" data-type="onetime" id="onetime-btn">
+                            💰 One-Time Payment
+                            <small>Manual renewal required</small>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="paypal-container">
+                    <div id="paypal-button-container"></div>
+                </div>
+
+                <div class="payment-security">
+                    <p>🔒 Secure payment powered by PayPal</p>
+                    <p>✅ No credit card details stored</p>
+                    <p>🛡️ 30-day money-back guarantee</p>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-cancel-btn" id="cancel-paypal-btn">Cancel</button>
+            </div>
+        `);
+
+        // Set up payment type selection
+        let paymentType = 'subscription';
+        
+        document.getElementById('subscription-btn').addEventListener('click', () => {
+            paymentType = 'subscription';
+            this.updatePaymentTypeSelection('subscription');
+            this.renderPayPalButton(planType, paymentType);
+        });
+
+        document.getElementById('onetime-btn').addEventListener('click', () => {
+            paymentType = 'onetime';
+            this.updatePaymentTypeSelection('onetime');
+            this.renderPayPalButton(planType, paymentType);
+        });
+
+        document.getElementById('cancel-paypal-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+
+        // Initial PayPal button render
+        setTimeout(() => {
+            this.renderPayPalButton(planType, paymentType);
+        }, 100);
+    }
+
+    updatePaymentTypeSelection(selectedType) {
+        document.querySelectorAll('.payment-type-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(`${selectedType}-btn`).classList.add('active');
+    }
+
+    async renderPayPalButton(planType, paymentType) {
+        const container = document.getElementById('paypal-button-container');
+        container.innerHTML = ''; // Clear existing buttons
+
+        try {
+            if (paymentType === 'subscription') {
+                const result = await this.paypalService.createSubscription(planType);
+                await this.handlePaymentSuccess(result, planType, 'subscription');
+            } else {
+                const result = await this.paypalService.createOneTimePayment(planType);
+                await this.handlePaymentSuccess(result, planType, 'onetime');
+            }
+        } catch (error) {
+            console.error('PayPal button error:', error);
+            container.innerHTML = `
+                <div class="paypal-error">
+                    <p>❌ Error loading PayPal. Please try again.</p>
+                    <button class="retry-btn" onclick="location.reload()">Retry</button>
+                </div>
+            `;
+        }
+    }
+
+    async handlePaymentSuccess(paymentResult, planType, paymentType) {
+        try {
+            // Verify payment with your backend
+            const verification = await this.paypalService.verifyPayment({
+                ...paymentResult,
+                paymentType: paymentType
+            });
+
+            if (verification.success) {
+                // Activate premium
+                await this.activatePremiumFromPayment(planType, paymentResult, paymentType);
+                this.closeModal();
+                this.showPaymentSuccessModal(planType);
+            } else {
+                throw new Error('Payment verification failed');
+            }
+        } catch (error) {
+            console.error('Payment processing error:', error);
+            this.showStatus('❌ Payment processing failed. Please contact support.', 'error');
+        }
+    }
+
+    async activatePremiumFromPayment(planType, paymentResult, paymentType) {
+        this.isPremium = true;
+        this.trialActive = false;
+        this.subscriptionType = planType;
+        
+        // Set subscription end date
+        this.subscriptionEndDate = new Date();
+        if (planType === 'yearly') {
+            this.subscriptionEndDate.setFullYear(this.subscriptionEndDate.getFullYear() + 1);
+        } else {
+            this.subscriptionEndDate.setMonth(this.subscriptionEndDate.getMonth() + 1);
+        }
+
+        // Store payment information
+        const paymentInfo = {
+            paymentId: paymentResult.subscriptionID || paymentResult.orderID,
+            paymentType: paymentType,
+            planType: planType,
+            activatedDate: new Date().toISOString(),
+            paypalDetails: paymentResult.details
+        };
+
+        await chrome.storage.local.set({ paymentInfo });
+        await this.savePremiumStatus();
+        this.updateUI();
+    }
+
+    showPaymentSuccessModal(planType) {
+        const planName = planType === 'yearly' ? 'Yearly' : 'Monthly';
+        
+        const modal = this.createModal('payment-success-modal', '🎉 Payment Successful!', `
+            <div class="success-content">
+                <div class="success-icon">✅</div>
+                <h4>Welcome to Premium!</h4>
+                <p>Your ${planName} Premium subscription is now active.</p>
+                
+                <div class="premium-activated-features">
+                    <h5>You now have access to:</h5>
+                    <ul>
+                        <li>🚀 Unlimited daily searches</li>
+                        <li>🔍 All search engines</li>
+                        <li>🎯 Advanced filtering options</li>
+                        <li>📊 Usage analytics</li>
+                        <li>🛠️ Priority support</li>
+                    </ul>
+                </div>
+
+                <div class="next-steps">
+                    <p><strong>Next billing:</strong> ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}</p>
+                    <p>You can manage your subscription anytime in the settings.</p>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-trial-btn" id="start-using-btn">Start Using Premium!</button>
+            </div>
+        `);
+
+        document.getElementById('start-using-btn').addEventListener('click', () => {
+            this.closeModal();
+            this.showStatus('🎉 Premium activated! Enjoy unlimited searches!', 'success');
         });
     }
 
@@ -448,12 +648,86 @@ class PremiumManager {
         });
 
         document.getElementById('cancel-subscription-btn').addEventListener('click', () => {
-            this.showCancellationModal();
+            this.showPayPalCancellationModal();
         });
 
         document.getElementById('close-subscription-btn').addEventListener('click', () => {
             this.closeModal();
         });
+    }
+
+    showPayPalCancellationModal() {
+        const modal = this.createModal('paypal-cancellation-modal', 'Cancel PayPal Subscription', `
+            <div class="cancellation-details">
+                <h4>😢 Cancel Your Subscription</h4>
+                <p>This will cancel your PayPal subscription and you'll lose access to premium features.</p>
+                
+                <div class="cancellation-info">
+                    <h5>What happens when you cancel:</h5>
+                    <ul>
+                        <li>❌ Your PayPal subscription will be cancelled immediately</li>
+                        <li>⏰ You'll keep premium access until ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'your next billing date'}</li>
+                        <li>🔄 No future charges will be made</li>
+                        <li>📉 You'll return to the free version (20 searches/day)</li>
+                    </ul>
+                </div>
+
+                <div class="retention-offer">
+                    <p><strong>💡 Consider:</strong> You can pause your subscription instead of cancelling completely.</p>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-cancel-btn" id="confirm-paypal-cancel-btn">Cancel Subscription</button>
+                <button class="premium-trial-btn" id="keep-paypal-subscription-btn">Keep Subscription</button>
+            </div>
+        `);
+
+        document.getElementById('confirm-paypal-cancel-btn').addEventListener('click', () => {
+            this.cancelPayPalSubscription();
+        });
+
+        document.getElementById('keep-paypal-subscription-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+    }
+
+    async cancelPayPalSubscription() {
+        try {
+            // Get stored payment info
+            const result = await chrome.storage.local.get(['paymentInfo']);
+            const paymentInfo = result.paymentInfo;
+
+            if (paymentInfo && paymentInfo.paymentId && paymentInfo.paymentType === 'subscription') {
+                // Cancel the PayPal subscription
+                await this.paypalService.cancelSubscription(paymentInfo.paymentId);
+                
+                // Update local status
+                this.isPremium = false;
+                this.subscriptionType = null;
+                this.subscriptionEndDate = null;
+                
+                // Clear payment info
+                await chrome.storage.local.remove(['paymentInfo']);
+                await this.savePremiumStatus();
+                
+                this.updateUI();
+                this.closeModal();
+                this.showStatus('✅ PayPal subscription cancelled successfully.', 'success');
+            } else {
+                // Handle one-time payments or missing payment info
+                this.isPremium = false;
+                this.subscriptionType = null;
+                this.subscriptionEndDate = null;
+                await this.savePremiumStatus();
+                this.updateUI();
+                this.closeModal();
+                this.showStatus('✅ Premium access cancelled.', 'success');
+            }
+        } catch (error) {
+            console.error('Error cancelling PayPal subscription:', error);
+            this.showStatus('❌ Error cancelling subscription. Please contact support.', 'error');
+        }
     }
 
     showChangePlanModal() {
@@ -495,7 +769,7 @@ class PremiumManager {
 
         document.getElementById('confirm-plan-change-btn').addEventListener('click', (e) => {
             const newPlan = e.target.dataset.newPlan;
-            this.changePlan(newPlan);
+            this.changePayPalPlan(newPlan);
         });
 
         document.getElementById('cancel-plan-change-btn').addEventListener('click', () => {
@@ -503,24 +777,27 @@ class PremiumManager {
         });
     }
 
-    async changePlan(newPlan) {
-        const oldPlan = this.subscriptionType;
-        this.subscriptionType = newPlan;
-        
-        // Update subscription end date based on new plan
-        const now = new Date();
-        if (newPlan === 'yearly') {
-            this.subscriptionEndDate = new Date(now.setFullYear(now.getFullYear() + 1));
-        } else {
-            this.subscriptionEndDate = new Date(now.setMonth(now.getMonth() + 1));
+    async changePayPalPlan(newPlan) {
+        try {
+            // For PayPal, we need to cancel current subscription and create a new one
+            const result = await chrome.storage.local.get(['paymentInfo']);
+            const paymentInfo = result.paymentInfo;
+
+            if (paymentInfo && paymentInfo.paymentType === 'subscription') {
+                // Cancel current subscription
+                await this.paypalService.cancelSubscription(paymentInfo.paymentId);
+            }
+
+            this.closeModal();
+            
+            // Show new payment modal for the new plan
+            this.showPayPalModal(newPlan);
+            
+            this.showStatus('Please complete payment for your new plan.', 'info');
+        } catch (error) {
+            console.error('Error changing PayPal plan:', error);
+            this.showStatus('❌ Error changing plan. Please try again.', 'error');
         }
-        
-        await this.savePremiumStatus();
-        this.updateUI();
-        this.closeModal();
-        
-        const planName = newPlan === 'yearly' ? 'Yearly' : 'Monthly';
-        this.showStatus(`✅ Plan changed successfully! You're now on the ${planName} plan.`, 'success');
     }
 
     showBillingHistoryModal() {
@@ -568,7 +845,7 @@ class PremiumManager {
         `);
 
         document.getElementById('download-invoice-btn').addEventListener('click', () => {
-            this.downloadInvoice();
+            this.downloadPayPalInvoice();
         });
 
         document.getElementById('update-payment-btn').addEventListener('click', () => {
@@ -577,6 +854,46 @@ class PremiumManager {
 
         document.getElementById('close-billing-btn').addEventListener('click', () => {
             this.closeModal();
+        });
+    }
+
+    downloadPayPalInvoice() {
+        chrome.storage.local.get(['paymentInfo'], (result) => {
+            const paymentInfo = result.paymentInfo || {};
+            
+            const invoiceContent = `
+MULTI TAB SEARCH EXTENSION - PAYPAL INVOICE
+==========================================
+
+Date: ${new Date().toLocaleDateString()}
+Invoice #: MTS-PP-${Date.now()}
+
+Payment Method: PayPal
+Payment ID: ${paymentInfo.paymentId || 'N/A'}
+Payment Type: ${paymentInfo.paymentType || 'N/A'}
+Subscription: ${this.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Premium
+Amount: ${this.subscriptionType === 'yearly' ? '$24.99' : '$4.99'}
+Status: Active
+
+Next Billing: ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}
+Activated: ${paymentInfo.activatedDate ? new Date(paymentInfo.activatedDate).toLocaleDateString() : 'N/A'}
+
+Thank you for your business!
+
+For support, contact: support@multitabsearch.com
+            `;
+            
+            const blob = new Blob([invoiceContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `paypal-invoice-${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showStatus('📄 PayPal invoice downloaded successfully!', 'success');
         });
     }
 
@@ -604,37 +921,6 @@ class PremiumManager {
         }
         
         return history;
-    }
-
-    downloadInvoice() {
-        // Create a simple invoice content
-        const invoiceContent = `
-MULTI TAB SEARCH EXTENSION - INVOICE
-=====================================
-
-Date: ${new Date().toLocaleDateString()}
-Invoice #: MTS-${Date.now()}
-
-Subscription: ${this.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Premium
-Amount: ${this.subscriptionType === 'yearly' ? '$24.99' : '$4.99'}
-Status: Paid
-
-Next Billing: ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}
-
-Thank you for your business!
-        `;
-        
-        const blob = new Blob([invoiceContent], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${Date.now()}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        this.showStatus('📄 Invoice downloaded successfully!', 'success');
     }
 
     showPaymentUpdateModal() {
@@ -749,52 +1035,6 @@ Thank you for your business!
         // Simulate saving payment method
         this.closeModal();
         this.showStatus('💳 Payment method updated successfully!', 'success');
-    }
-
-    showCancellationModal() {
-        const modal = this.createModal('cancellation-modal', 'Cancel Subscription', `
-            <div class="cancellation-details">
-                <h4>😢 Sorry to see you go!</h4>
-                <p>Are you sure you want to cancel your premium subscription?</p>
-                
-                <div class="cancellation-info">
-                    <h5>What you'll lose:</h5>
-                    <ul>
-                        <li>❌ Unlimited searches (back to 20/day)</li>
-                        <li>❌ Advanced search engines</li>
-                        <li>❌ Premium filters</li>
-                        <li>❌ Priority support</li>
-                    </ul>
-                </div>
-
-                <div class="retention-offer">
-                    <p><strong>💡 Before you go:</strong> Would you like to pause your subscription instead? You can reactivate anytime!</p>
-                </div>
-            </div>
-        `, `
-            <div class="footer-actions">
-                <button class="premium-cancel-btn" id="confirm-cancel-btn">Yes, Cancel</button>
-                <button class="premium-trial-btn" id="keep-subscription-btn">Keep Subscription</button>
-            </div>
-        `);
-
-        document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
-            this.cancelSubscription();
-            this.closeModal();
-        });
-
-        document.getElementById('keep-subscription-btn').addEventListener('click', () => {
-            this.closeModal();
-        });
-    }
-
-    async cancelSubscription() {
-        this.isPremium = false;
-        this.subscriptionType = null;
-        this.subscriptionEndDate = null;
-        await this.savePremiumStatus();
-        this.updateUI();
-        this.showStatus('Subscription cancelled. You now have the free version with 20 searches per day.', 'info');
     }
 
     createModal(className, title, content, footer = '') {
