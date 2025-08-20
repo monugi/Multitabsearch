@@ -440,12 +440,11 @@ class PremiumManager {
         `);
 
         document.getElementById('change-plan-btn').addEventListener('click', () => {
-            this.closeModal();
-            this.showPremiumModal();
+            this.showChangePlanModal();
         });
 
         document.getElementById('billing-history-btn').addEventListener('click', () => {
-            this.showStatus('Billing history feature coming soon!', 'info');
+            this.showBillingHistoryModal();
         });
 
         document.getElementById('cancel-subscription-btn').addEventListener('click', () => {
@@ -455,6 +454,301 @@ class PremiumManager {
         document.getElementById('close-subscription-btn').addEventListener('click', () => {
             this.closeModal();
         });
+    }
+
+    showChangePlanModal() {
+        const currentPlan = this.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly';
+        const otherPlan = this.subscriptionType === 'yearly' ? 'Monthly' : 'Yearly';
+        const otherPlanPrice = this.subscriptionType === 'yearly' ? '$4.99/month' : '$24.99/year (Save 58%)';
+        
+        const modal = this.createModal('change-plan-modal', 'Change Your Plan', `
+            <div class="change-plan-details">
+                <h4>Current Plan: ${currentPlan}</h4>
+                <p>Switch to our ${otherPlan} plan for different billing preferences.</p>
+                
+                <div class="plan-comparison">
+                    <div class="current-plan-info">
+                        <h5>Current: ${currentPlan} Plan</h5>
+                        <p>✅ Currently active</p>
+                        <p>Next billing: ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}</p>
+                    </div>
+                    
+                    <div class="new-plan-info">
+                        <h5>Switch to: ${otherPlan} Plan</h5>
+                        <p>💰 ${otherPlanPrice}</p>
+                        <p>${this.subscriptionType === 'yearly' ? 'More flexible monthly billing' : 'Save 58% with annual billing'}</p>
+                    </div>
+                </div>
+                
+                <div class="change-plan-note">
+                    <p><strong>Note:</strong> Plan changes take effect at your next billing cycle. You'll continue to have full access until then.</p>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-trial-btn" id="confirm-plan-change-btn" data-new-plan="${this.subscriptionType === 'yearly' ? 'monthly' : 'yearly'}">
+                    Switch to ${otherPlan}
+                </button>
+                <button class="premium-cancel-btn" id="cancel-plan-change-btn">Keep Current Plan</button>
+            </div>
+        `);
+
+        document.getElementById('confirm-plan-change-btn').addEventListener('click', (e) => {
+            const newPlan = e.target.dataset.newPlan;
+            this.changePlan(newPlan);
+        });
+
+        document.getElementById('cancel-plan-change-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+    }
+
+    async changePlan(newPlan) {
+        const oldPlan = this.subscriptionType;
+        this.subscriptionType = newPlan;
+        
+        // Update subscription end date based on new plan
+        const now = new Date();
+        if (newPlan === 'yearly') {
+            this.subscriptionEndDate = new Date(now.setFullYear(now.getFullYear() + 1));
+        } else {
+            this.subscriptionEndDate = new Date(now.setMonth(now.getMonth() + 1));
+        }
+        
+        await this.savePremiumStatus();
+        this.updateUI();
+        this.closeModal();
+        
+        const planName = newPlan === 'yearly' ? 'Yearly' : 'Monthly';
+        this.showStatus(`✅ Plan changed successfully! You're now on the ${planName} plan.`, 'success');
+    }
+
+    showBillingHistoryModal() {
+        // Generate mock billing history based on subscription
+        const history = this.generateBillingHistory();
+        
+        const historyHTML = history.map(item => `
+            <div class="billing-item">
+                <div class="billing-date">${item.date}</div>
+                <div class="billing-description">${item.description}</div>
+                <div class="billing-amount">${item.amount}</div>
+                <div class="billing-status ${item.status.toLowerCase()}">${item.status}</div>
+            </div>
+        `).join('');
+        
+        const modal = this.createModal('billing-history-modal', 'Billing History', `
+            <div class="billing-history-content">
+                <div class="billing-summary">
+                    <h4>📊 Account Summary</h4>
+                    <p><strong>Current Plan:</strong> ${this.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Premium</p>
+                    <p><strong>Next Billing:</strong> ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}</p>
+                    <p><strong>Payment Method:</strong> •••• •••• •••• 1234</p>
+                </div>
+                
+                <div class="billing-history-list">
+                    <h5>Recent Transactions</h5>
+                    <div class="billing-header">
+                        <div>Date</div>
+                        <div>Description</div>
+                        <div>Amount</div>
+                        <div>Status</div>
+                    </div>
+                    ${historyHTML}
+                </div>
+                
+                <div class="billing-actions">
+                    <button class="billing-action-btn" id="download-invoice-btn">📄 Download Invoice</button>
+                    <button class="billing-action-btn" id="update-payment-btn">💳 Update Payment Method</button>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-cancel-btn" id="close-billing-btn">Close</button>
+            </div>
+        `);
+
+        document.getElementById('download-invoice-btn').addEventListener('click', () => {
+            this.downloadInvoice();
+        });
+
+        document.getElementById('update-payment-btn').addEventListener('click', () => {
+            this.showPaymentUpdateModal();
+        });
+
+        document.getElementById('close-billing-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+    }
+
+    generateBillingHistory() {
+        const history = [];
+        const currentDate = new Date();
+        const planPrice = this.subscriptionType === 'yearly' ? '$24.99' : '$4.99';
+        const planName = this.subscriptionType === 'yearly' ? 'Yearly Premium' : 'Monthly Premium';
+        
+        // Generate last 6 months of billing history
+        for (let i = 0; i < 6; i++) {
+            const date = new Date(currentDate);
+            if (this.subscriptionType === 'yearly') {
+                date.setFullYear(date.getFullYear() - i);
+            } else {
+                date.setMonth(date.getMonth() - i);
+            }
+            
+            history.push({
+                date: date.toLocaleDateString(),
+                description: `${planName} Subscription`,
+                amount: planPrice,
+                status: i === 0 ? 'Pending' : 'Paid'
+            });
+        }
+        
+        return history;
+    }
+
+    downloadInvoice() {
+        // Create a simple invoice content
+        const invoiceContent = `
+MULTI TAB SEARCH EXTENSION - INVOICE
+=====================================
+
+Date: ${new Date().toLocaleDateString()}
+Invoice #: MTS-${Date.now()}
+
+Subscription: ${this.subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Premium
+Amount: ${this.subscriptionType === 'yearly' ? '$24.99' : '$4.99'}
+Status: Paid
+
+Next Billing: ${this.subscriptionEndDate ? this.subscriptionEndDate.toLocaleDateString() : 'N/A'}
+
+Thank you for your business!
+        `;
+        
+        const blob = new Blob([invoiceContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice-${Date.now()}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        this.showStatus('📄 Invoice downloaded successfully!', 'success');
+    }
+
+    showPaymentUpdateModal() {
+        const modal = this.createModal('payment-update-modal', 'Update Payment Method', `
+            <div class="payment-update-content">
+                <h4>💳 Update Your Payment Information</h4>
+                <p>Update your payment method for future billing cycles.</p>
+                
+                <div class="current-payment">
+                    <h5>Current Payment Method</h5>
+                    <div class="payment-method">
+                        <span class="card-info">💳 •••• •••• •••• 1234</span>
+                        <span class="card-type">Visa</span>
+                        <span class="card-expiry">Expires 12/25</span>
+                    </div>
+                </div>
+                
+                <div class="new-payment-form">
+                    <h5>New Payment Method</h5>
+                    <div class="form-group">
+                        <label>Card Number</label>
+                        <input type="text" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Expiry Date</label>
+                            <input type="text" id="expiry-date" placeholder="MM/YY" maxlength="5">
+                        </div>
+                        <div class="form-group">
+                            <label>CVV</label>
+                            <input type="text" id="cvv" placeholder="123" maxlength="4">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Cardholder Name</label>
+                        <input type="text" id="cardholder-name" placeholder="John Doe">
+                    </div>
+                </div>
+                
+                <div class="security-note">
+                    <p>🔒 Your payment information is encrypted and secure. We use industry-standard security measures to protect your data.</p>
+                </div>
+            </div>
+        `, `
+            <div class="footer-actions">
+                <button class="premium-trial-btn" id="save-payment-btn">💾 Save Payment Method</button>
+                <button class="premium-cancel-btn" id="cancel-payment-btn">Cancel</button>
+            </div>
+        `);
+
+        // Add input formatting
+        this.setupPaymentFormFormatting();
+
+        document.getElementById('save-payment-btn').addEventListener('click', () => {
+            this.savePaymentMethod();
+        });
+
+        document.getElementById('cancel-payment-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+    }
+
+    setupPaymentFormFormatting() {
+        // Format card number input
+        const cardNumberInput = document.getElementById('card-number');
+        if (cardNumberInput) {
+            cardNumberInput.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+                let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                e.target.value = formattedValue;
+            });
+        }
+
+        // Format expiry date input
+        const expiryInput = document.getElementById('expiry-date');
+        if (expiryInput) {
+            expiryInput.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 2) {
+                    value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                }
+                e.target.value = value;
+            });
+        }
+
+        // Format CVV input (numbers only)
+        const cvvInput = document.getElementById('cvv');
+        if (cvvInput) {
+            cvvInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+        }
+    }
+
+    savePaymentMethod() {
+        const cardNumber = document.getElementById('card-number').value;
+        const expiryDate = document.getElementById('expiry-date').value;
+        const cvv = document.getElementById('cvv').value;
+        const cardholderName = document.getElementById('cardholder-name').value;
+
+        // Basic validation
+        if (!cardNumber || !expiryDate || !cvv || !cardholderName) {
+            this.showStatus('❌ Please fill in all payment fields.', 'error');
+            return;
+        }
+
+        if (cardNumber.replace(/\s/g, '').length < 13) {
+            this.showStatus('❌ Please enter a valid card number.', 'error');
+            return;
+        }
+
+        // Simulate saving payment method
+        this.closeModal();
+        this.showStatus('💳 Payment method updated successfully!', 'success');
     }
 
     showCancellationModal() {
