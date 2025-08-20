@@ -230,7 +230,6 @@ class PremiumManager {
 
     showPremiumModal() {
         const modal = this.createModal('premium-modal-large', 'Upgrade to Premium', `
-            <div class="modal-subtitle">Unlock unlimited searches and advanced features</div>
             <div class="premium-tiers-grid">
                 <div class="premium-tier" data-plan="monthly">
                     <div class="tier-header">
