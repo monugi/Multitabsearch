@@ -509,42 +509,19 @@ class PremiumManager {
 
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay';
-        modalOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            animation: fadeIn 0.3s ease;
-        `;
 
         const modal = document.createElement('div');
         modal.className = `modal ${className}`;
-        modal.style.cssText = `
-            background: white;
-            border-radius: 12px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideInUp 0.3s ease;
-        `;
 
         modal.innerHTML = `
-            <div class="modal-header" style="padding: 20px 20px 0 20px; border-bottom: 1px solid #e9ecef;">
-                <h3 style="margin: 0 0 10px 0; color: #212529; font-size: 20px;">${title}</h3>
-                <button class="modal-close" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">×</button>
+            <div class="modal-header">
+                <h3>${title}</h3>
+                <button class="modal-close">×</button>
             </div>
-            <div class="modal-body" style="padding: 20px;">
+            <div class="modal-body">
                 ${content}
             </div>
-            ${footer ? `<div class="modal-footer" style="padding: 0 20px 20px 20px;">${footer}</div>` : ''}
+            ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
         `;
 
         modalOverlay.appendChild(modal);
