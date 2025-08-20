@@ -24,13 +24,6 @@ A powerful Chrome extension that allows users to search multiple queries at once
 - **Auto-Clear**: Option to clear input after search
 - **Settings Persistence**: All preferences are saved automatically
 
-### Premium Features
-- **PayPal Integration**: Secure payment processing via PayPal
-- **Subscription Management**: Monthly and yearly premium plans
-- **Unlimited Searches**: No daily limits for premium users
-- **Advanced Analytics**: Track usage patterns and productivity
-- **Priority Support**: Dedicated customer support for premium users
-
 ### Design Features
 - Clean, professional interface inspired by modern design principles
 - Responsive layout optimized for the Chrome extension popup
@@ -62,42 +55,14 @@ A powerful Chrome extension that allows users to search multiple queries at once
 - `popup.css` - Styling with modern design principles
 - `popup.js` - Core functionality and search logic
 - `background.js` - Background service worker
-- `src/paypal-config.js` - PayPal configuration and settings
-- `src/paypal-service.js` - PayPal payment processing service
-- `server/paypal-backend.js` - Backend server for PayPal integration
-- `server/package.json` - Backend dependencies
 
 ### Permissions
 - `tabs` - Required for opening new tabs
 - `storage` - Used to save user preferences
-- `https://www.paypal.com/*` - PayPal payment processing
-- `https://your-server.com/*` - Backend API communication
 
 ### Browser Support
 - Chrome (Manifest V3)
 - Compatible with Chromium-based browsers
-
-### Backend Setup
-
-The extension requires a backend server for secure PayPal integration:
-
-1. **Deploy the backend server** (`server/paypal-backend.js`) to your hosting platform
-2. **Update the API endpoints** in `src/paypal-config.js` with your server URL
-3. **Set up PayPal webhook** endpoints for real-time payment notifications
-4. **Configure environment variables** for production deployment
-
-#### Backend Deployment Options:
-- **Heroku**: Easy deployment with automatic scaling
-- **Vercel**: Serverless functions for API endpoints
-- **Railway**: Simple deployment with built-in database
-- **DigitalOcean**: VPS hosting for full control
-
-#### Environment Variables:
-```
-PAYPAL_CLIENT_ID=your_paypal_client_id
-PAYPAL_CLIENT_SECRET=your_paypal_client_secret
-PAYPAL_ENVIRONMENT=sandbox_or_live
-```
 
 ## Customization
 
@@ -106,8 +71,6 @@ The extension can be easily customized by modifying:
 - Website filters in the checkboxes section (edit `popup.html`)
 - Styling and colors (edit `popup.css`)
 - Additional features (extend `popup.js`)
-- Payment plans and pricing (edit `src/paypal-config.js`)
-- Backend API endpoints (edit `server/paypal-backend.js`)
 
 ## Performance Considerations
 
@@ -115,14 +78,5 @@ The extension can be easily customized by modifying:
 - Confirmation dialogs for large numbers of tabs (100+ search queries, 50+ URLs)
 - Efficient storage and retrieval of user settings
 - Optimized for fast processing of large query lists
-- Secure payment processing with minimal client-side data storage
-- Automatic subscription management and renewal handling
 
-## Security Features
-
-- **Client-side security**: PayPal credentials never stored in extension
-- **Server-side verification**: All payments verified through backend API
-- **Encrypted communication**: HTTPS-only API communication
-- **Minimal data storage**: Only essential subscription data stored locally
-- **Webhook validation**: PayPal webhook signatures verified for authenticity
 This extension provides a professional-grade solution for bulk searching with a clean, intuitive interface that matches modern design standards.
