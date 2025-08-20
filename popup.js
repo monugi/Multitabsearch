@@ -11,7 +11,7 @@ class PremiumManager {
         this.queryCount = 0;
         this.dailyQueryCount = 0;
         this.lastQueryDate = null;
-        this.FREE_QUERY_LIMIT = 5;
+        this.FREE_QUERY_LIMIT = 20;
         this.init();
     }
 
@@ -210,7 +210,7 @@ class PremiumManager {
             const color = remaining <= 1 ? '#dc3545' : remaining <= 2 ? '#ffc107' : '#28a745';
             counterContainer.innerHTML = `
                 <span style="color: ${color}; font-weight: 600;">
-                    ${remaining} free searches remaining today
+                    ${remaining} of ${this.FREE_QUERY_LIMIT} free searches remaining today
                 </span>
             `;
         }
@@ -468,7 +468,7 @@ class PremiumManager {
                 <div class="cancellation-info">
                     <h5>What you'll lose:</h5>
                     <ul>
-                        <li>❌ Unlimited searches (back to 5/day)</li>
+                        <li>❌ Unlimited searches (back to 20/day)</li>
                         <li>❌ Advanced search engines</li>
                         <li>❌ Premium filters</li>
                         <li>❌ Priority support</li>
@@ -502,7 +502,7 @@ class PremiumManager {
         this.subscriptionEndDate = null;
         await this.savePremiumStatus();
         this.updateUI();
-        this.showStatus('Subscription cancelled. You now have the free version with 5 searches per day.', 'info');
+        this.showStatus('Subscription cancelled. You now have the free version with 20 searches per day.', 'info');
     }
 
     createModal(className, title, content, footer = '') {
@@ -747,7 +747,7 @@ class MultiTabSearchExtension {
         const modal = this.premiumManager.createModal('limit-modal', '🚫 Search Limit Reached', `
             <div class="limit-details">
                 <h4>Free Version Limit</h4>
-                <p>You've reached your daily limit of 5 free searches.</p>
+                <p>You've reached your daily limit of ${this.premiumManager.FREE_QUERY_LIMIT} free searches.</p>
                 <p>You tried to search <strong>${requestedQueries}</strong> queries, but only have <strong>${remaining}</strong> searches remaining today.</p>
                 
                 <div class="upgrade-benefits">
